@@ -1,11 +1,9 @@
 # backend/api/urls.py
-
-# 1. IMPORT PATH AND VIEWS
 from django.urls import path
-from . import views # Import the views from the current directory (api/views.py)
+from . import views
 
 urlpatterns = [
-    # This path is now relative to '/api/'
-    # Full URL: http://127.0.0.1:8000/api/library/
     path('library/', views.get_user_library, name='user_library'),
+    path('upload/', views.upload_document, name='upload_document'),
+    path('chat/', views.chat_with_document, name='chat_with_document'),
 ]
