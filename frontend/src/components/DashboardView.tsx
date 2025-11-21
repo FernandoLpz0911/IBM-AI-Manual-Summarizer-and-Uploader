@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Upload, FileText, Bot, Users, TrendingUp, Clock, Search } from 'lucide-react';
 import { User, DocumentData, Theme, ViewState } from '../types';
 import { MOCK_HISTORY } from '../constants';
@@ -8,9 +8,21 @@ interface DashboardViewProps {
   documents: DocumentData[];
   theme: Theme;
   setView: (view: ViewState) => void;
+  onUpload: (file: File) => void;
 }
 
-const DashboardView: React.FC<DashboardViewProps> = ({ user, documents, theme, setView }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ user, documents, theme, setView, onUpload }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      onUpload(file);
+      // Reset value so the same file can be uploaded again if needed
+      event.target.value = '';
+    }
+  };
+
   const styles = {
     cardBg: theme === 'dark' ? 'bg-[#1e293b]/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm',
     textMain: theme === 'dark' ? 'text-slate-100' : 'text-slate-900',
@@ -63,8 +75,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, documents, theme, s
             Your intelligent document analysis dashboard is ready.
           </p>
         </div>
+        
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          className="hidden" 
+          accept=".pdf,.doc,.docx,.txt"
+        />
         <button 
-          onClick={() => setView('library')}
+          onClick={() => fileInputRef.current?.click()}
           className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg shadow-lg shadow-blue-500/20 flex items-center transition-all duration-300 hover:scale-105 active:scale-95 font-medium text-sm animate-in slide-in-from-right duration-500"
         >
           <Upload size={16} className="mr-2" /> Upload New Manual

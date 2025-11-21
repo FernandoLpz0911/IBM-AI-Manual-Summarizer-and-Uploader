@@ -1,14 +1,26 @@
-import React from 'react';
-import { FileText, MoreVertical, Search, Lock, Users as UsersIcon } from 'lucide-react';
-import { DocumentData, Theme, ViewState } from '../types';
+import React, { useRef } from 'react';
+import { FileText, MoreVertical, Search, Lock, Users as UsersIcon, Upload } from 'lucide-react';
+import { DocumentData, Theme } from '../types';
 
 interface LibraryViewProps {
   documents: DocumentData[];
   theme: Theme;
   onOpenDoc: (doc: DocumentData) => void;
+  onUpload: (file: File) => void;
 }
 
-const LibraryView: React.FC<LibraryViewProps> = ({ documents, theme, onOpenDoc }) => {
+const LibraryView: React.FC<LibraryViewProps> = ({ documents, theme, onOpenDoc, onUpload }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      onUpload(file);
+      // Reset value so the same file can be uploaded again if needed
+      event.target.value = '';
+    }
+  };
+
   const styles = {
     cardBg: theme === 'dark' ? 'bg-[#1e293b]/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm',
     textMain: theme === 'dark' ? 'text-slate-100' : 'text-slate-900',
@@ -18,9 +30,25 @@ const LibraryView: React.FC<LibraryViewProps> = ({ documents, theme, onOpenDoc }
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-8 animate-in fade-in duration-500">
-      <div className="mb-8">
-        <h2 className={`text-3xl font-bold ${styles.textMain} mb-2 tracking-tight`}>My Library</h2>
-        <p className={`text-sm ${styles.textSub}`}>Manage and analyze your technical documentation.</p>
+      <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+        <div>
+          <h2 className={`text-3xl font-bold ${styles.textMain} mb-2 tracking-tight`}>My Library</h2>
+          <p className={`text-sm ${styles.textSub}`}>Manage and analyze your technical documentation.</p>
+        </div>
+
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          className="hidden" 
+          accept=".pdf,.doc,.docx,.txt"
+        />
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg shadow-lg shadow-blue-500/20 flex items-center transition-all duration-300 hover:scale-105 active:scale-95 font-medium text-sm shrink-0"
+        >
+          <Upload size={16} className="mr-2" /> Upload Document
+        </button>
       </div>
 
       {/* Search Bar */}
@@ -47,7 +75,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ documents, theme, onOpenDoc }
               <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
                 <FileText size={24} />
               </div>
-              <button className={`${styles.textSub} hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-slate-700/20`}>
+              <button className={`${styles.textSub} hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-slate-700/20`} onClick={(e) => e.stopPropagation()}>
                 <MoreVertical size={18} />
               </button>
             </div>
