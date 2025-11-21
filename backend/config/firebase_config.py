@@ -1,39 +1,25 @@
 # backend/config/firebase_config.py
-
 import firebase_admin
-from firebase_admin import credentials
-from firebase_admin import firestore
-from django.conf import settings
+from firebase_admin import credentials, firestore
 import os
 
-KEY_FILENAME = 'michigan-devfest-firebase-adminsdk-fbsvc-99b6994a55.json'
+# Use a global variable for the DB client
+db = None
 
-SERVICE_ACCOUNT_KEY_PATH = os.environ.get('FIREBASE_KEY_PATH')
-
-
-def initialize_firebase():
-    """Initializes the Firebase app if it hasn't been initialized already."""
-    
-    # Check if the Firebase app is already initialized
+try:
+    # Check if already initialized
     if not firebase_admin._apps:
-        if not SERVICE_ACCOUNT_KEY_PATH:
-            print("FATAL ERROR: FIREBASE_KEY_PATH environment variable is not set!")
-            return None
-        try:
-            # 1. Load Credentials
-            cred = credentials.Certificate(SERVICE_ACCOUNT_KEY_PATH)
-            
-            # 2. Initialize the App
+        # Look for the key file in the parent directory (backend/)
+        cred_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'michigan-devfest-firebase-adminsdk-fbsvc-99b6994a55.json')
+        
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
             firebase_admin.initialize_app(cred)
-            print("INFO: Firebase Admin SDK initialized successfully.")
-            
-        except Exception as e:
-            print(f"ERROR: Failed to initialize Firebase Admin SDK. Check service account path and file: {e}")
-            return None
-
-    # 3. Get Firestore Client and Return It
-    # Even if initialized before, we return the client object
-    return firestore.client()
-
-# Initialize Firebase and get the client object immediately
-db = initialize_firebase()
+            db = firestore.client()
+            print("FIREBASE INITIALIZED SUCCESSFULLY")
+        else:
+            print(f"WARNING: serviceAccountKey.json not found at {cred_path}")
+    else:
+        db = firestore.client()
+except Exception as e:
+    print(f"FIREBASE ERROR: {e}")

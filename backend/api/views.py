@@ -1,62 +1,93 @@
 # backend/api/views.py
-
-# --- 1. Import necessary components ---
+import json
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from firebase_admin import firestore
 from config.firebase_config import db as DB_CLIENT
 from .auth import firebase_auth_required
+from .watsonx import ask_watsonx  # Ensure you have this file from previous steps!
 
-
+# --- HELPER FUNCTION ---
 def save_summary_to_db(user_id, file_title, ai_summary_text):
-    """Saves a single AI summary document to the Firestore 'documents' collection."""
-    
     if DB_CLIENT is None:
-        # Handle case where connection is not ready
-        print("ERROR: Firestore client is not initialized.")
-        return False # Return failure status
-
-    # No need to use .add() if you want a specific ID, but .add() generates one.
+        return False
+    
     DB_CLIENT.collection('documents').add({
-        'user_id': user_id,          # String: to know who owns it
-        'title': file_title,         # String: to show in the UI list
-        'summary': ai_summary_text,  # String: the actual AI output
+        'user_id': user_id,
+        'title': file_title,
+        'summary': ai_summary_text,
         'created_at': firestore.SERVER_TIMESTAMP
-    }) 
-    
-    return True # Return success status
-    
-    
-@firebase_auth_required 
+    })
+    return True
+
+# --- VIEWS ---
+
+@csrf_exempt
+@firebase_auth_required
 def get_user_library(request):
-    """
-    Retrieves all documents for the authenticated user (UID).
-    """
+    """GET: Retrieve all documents for the user"""
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    user_id = request.user_id
     
-    # CRITICAL: Get the user ID from the request object set by the decorator
-    user_id = request.user_id 
-
     if DB_CLIENT is None:
-        return JsonResponse(
-            {'error': 'Database connection failed.', 'documents': []}, 
-            status=500
-        )
+        return JsonResponse({'error': 'Database unavailable'}, status=500)
 
-    # 2. Query Firestore using the actual authenticated user_id
-    # Ensure 'user_id' in Firestore is a string type (UIDs are strings)
-    docs_stream = DB_CLIENT.collection('documents').where('user_id', '==', user_id).stream() 
-
+    docs_stream = DB_CLIENT.collection('documents').where('user_id', '==', user_id).stream()
+    
     library_data = []
-
-    # 3. Process results
     for doc in docs_stream:
-        # ... (rest of the processing logic)
-        doc_data = doc.to_dict()
-
+        data = doc.to_dict()
         library_data.append({
-            'id': doc.id,              
-            'title': doc_data.get('title', 'No Title'), 
-            'summary': doc_data.get('summary', 'No Summary'),
+            'id': doc.id,
+            'title': data.get('title', 'Untitled'),
+            'summary': data.get('summary', ''),
+            # We don't send full text to list view to save bandwidth
         })
 
-    # 4. Return the response
     return JsonResponse({'documents': library_data})
+
+@csrf_exempt
+@firebase_auth_required
+def upload_document(request):
+    """POST: Accept text/file, (optional) summarize, and save to DB"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        # Parse JSON data from React
+        data = json.loads(request.body)
+        title = data.get('title', 'Untitled Doc')
+        text = data.get('text', '')
+        
+        # Hackathon Shortcut: We use the first 100 chars as the "Summary" 
+        # to save AI tokens/time. You can use watsonx here if you want.
+        summary = text[:150] + "..."
+        
+        # Save to Firestore
+        save_summary_to_db(request.user_id, title, summary)
+        
+        return JsonResponse({'message': 'Upload successful', 'summary': summary})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+def chat_with_document(request):
+    """POST: Send context + question to WatsonX"""
+    # Note: We usually don't require auth for the chat demo to make it faster,
+    # but you can add @firebase_auth_required if you want.
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        question = data.get('question')
+        context = data.get('full_document_text')
+
+        # Call your AI file
+        ai_response = ask_watsonx(context, question)
+        
+        return JsonResponse(ai_response)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
