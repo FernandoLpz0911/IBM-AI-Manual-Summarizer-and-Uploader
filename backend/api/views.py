@@ -37,6 +37,7 @@ def get_user_library(request):
             'id': doc.id,
             'title': data.get('title', 'Untitled'),
             'summary': data.get('summary', ''),
+            'text': data.get('text', ''), # <--- ADD THIS LINE OR THE CHAT WILL FAIL
         })
 
     return JsonResponse({'documents': library_data})
