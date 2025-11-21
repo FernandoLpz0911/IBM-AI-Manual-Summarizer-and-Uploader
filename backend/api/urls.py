@@ -1,11 +1,10 @@
-# backend/api/urls.py
-
-# 1. IMPORT PATH AND VIEWS
 from django.urls import path
-from . import views # Import the views from the current directory (api/views.py)
+from . import views # <-- Import views from the local directory
 
+# Define the URL patterns for the 'api' app
 urlpatterns = [
-    # This path is now relative to '/api/'
-    # Full URL: http://127.0.0.1:8000/api/library/
-    path('library/', views.get_user_library, name='user_library'),
+    # Example: Home page view defined in api/views.py
+    path('', views.home_view, name='home'),
+    # Example: The protected view the button links to
+    path('protected-destination/', views.protected_destination_view, name='protected_destination'),
 ]
