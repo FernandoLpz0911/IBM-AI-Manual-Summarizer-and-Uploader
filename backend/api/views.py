@@ -3,7 +3,8 @@
 # --- 1. Import necessary components ---
 from django.http import JsonResponse
 from firebase_admin import firestore
-from config.firebase_config import db as DB_CLIENT # Now DB_CLIENT is the initialized object
+from config.firebase_config import db as DB_CLIENT
+from .auth import firebase_auth_required
 
 
 def save_summary_to_db(user_id, file_title, ai_summary_text):
@@ -25,11 +26,14 @@ def save_summary_to_db(user_id, file_title, ai_summary_text):
     return True # Return success status
     
     
+@firebase_auth_required 
 def get_user_library(request):
-    """Django view to retrieve all documents for a user and return them as JSON."""
+    """
+    Retrieves all documents for the authenticated user (UID).
+    """
     
-    # 1. Get the user ID from the query parameters (e.g., /api/library?user_id=123)
-    user_id = request.GET.get('user_id', 'hackathon_demo_user')
+    # CRITICAL: Get the user ID from the request object set by the decorator
+    user_id = request.user_id 
 
     if DB_CLIENT is None:
         return JsonResponse(
@@ -37,18 +41,20 @@ def get_user_library(request):
             status=500
         )
 
-    # 2. Query Firestore
-    docs_stream = DB_CLIENT.collection('documents').where('user_id', '==', 0).stream()
+    # 2. Query Firestore using the actual authenticated user_id
+    # Ensure 'user_id' in Firestore is a string type (UIDs are strings)
+    docs_stream = DB_CLIENT.collection('documents').where('user_id', '==', user_id).stream() 
 
     library_data = []
 
     # 3. Process results
     for doc in docs_stream:
+        # ... (rest of the processing logic)
         doc_data = doc.to_dict()
 
         library_data.append({
-            'id': doc.id,              # The Firestore ID (e.g., "Ab72ks9")
-            'title': doc_data.get('title', 'No Title'), # Use .get() with fallback
+            'id': doc.id,              
+            'title': doc_data.get('title', 'No Title'), 
             'summary': doc_data.get('summary', 'No Summary'),
         })
 

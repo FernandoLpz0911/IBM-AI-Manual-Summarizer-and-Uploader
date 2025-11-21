@@ -8,10 +8,7 @@ import os
 
 KEY_FILENAME = 'michigan-devfest-firebase-adminsdk-fbsvc-99b6994a55.json'
 
-SERVICE_ACCOUNT_KEY_PATH = os.environ.get(
-    'FIREBASE_KEY_PATH', 
-    os.path.join(settings.BASE_DIR, '..', KEY_FILENAME)
-)
+SERVICE_ACCOUNT_KEY_PATH = os.environ.get('FIREBASE_KEY_PATH')
 
 
 def initialize_firebase():
@@ -19,6 +16,9 @@ def initialize_firebase():
     
     # Check if the Firebase app is already initialized
     if not firebase_admin._apps:
+        if not SERVICE_ACCOUNT_KEY_PATH:
+            print("FATAL ERROR: FIREBASE_KEY_PATH environment variable is not set!")
+            return None
         try:
             # 1. Load Credentials
             cred = credentials.Certificate(SERVICE_ACCOUNT_KEY_PATH)
