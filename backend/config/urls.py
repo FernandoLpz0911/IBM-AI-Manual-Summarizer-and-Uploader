@@ -1,22 +1,19 @@
-"""
-URL configuration for config project.
+# backend/config/urls.py
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+# 1. IMPORT PATH AND INCLUDE
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include 
+
 
 urlpatterns = [
+    # 2. ADMIN ROUTE (Standard Django)
     path('admin/', admin.site.urls),
+    
+    # 3. API ROUTE (Directs traffic to the api application's urls.py)
+    # Any URL starting with 'api/' will now be handled by the 'api' app.
+    path('api/', include('api.urls')),
+    
+    # 4. OPTIONAL: Root Path (To fix the 404 on the base URL)
+    # You might want a base page, perhaps a redirect or a simple status view.
+    # For now, we'll leave it out, but this is why you saw the 404 on '/'
 ]
