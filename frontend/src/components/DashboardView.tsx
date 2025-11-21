@@ -18,13 +18,46 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, documents, theme, s
     border: theme === 'dark' ? 'border-slate-700/50' : 'border-slate-200/60',
   };
 
+  // specific color styles for the glowing effects
+  const getColorStyles = (color: string) => {
+    const isDark = theme === 'dark';
+    
+    const colors: Record<string, any> = {
+      blue: {
+        iconBg: isDark ? 'bg-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-blue-50',
+        iconText: isDark ? 'text-blue-300' : 'text-blue-600',
+        glow: isDark ? 'hover:shadow-blue-500/20 hover:border-blue-500/40' : 'hover:shadow-blue-500/20 hover:border-blue-200',
+        badge: isDark ? 'bg-blue-400/10 text-blue-300' : 'bg-blue-50 text-blue-600'
+      },
+      emerald: {
+        iconBg: isDark ? 'bg-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-emerald-50',
+        iconText: isDark ? 'text-emerald-300' : 'text-emerald-600',
+        glow: isDark ? 'hover:shadow-emerald-500/20 hover:border-emerald-500/40' : 'hover:shadow-emerald-500/20 hover:border-emerald-200',
+        badge: isDark ? 'bg-emerald-400/10 text-emerald-300' : 'bg-emerald-50 text-emerald-600'
+      },
+      amber: {
+        iconBg: isDark ? 'bg-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'bg-amber-50',
+        iconText: isDark ? 'text-amber-300' : 'text-amber-600',
+        glow: isDark ? 'hover:shadow-amber-500/20 hover:border-amber-500/40' : 'hover:shadow-amber-500/20 hover:border-amber-200',
+        badge: isDark ? 'bg-amber-400/10 text-amber-300' : 'bg-amber-50 text-amber-600'
+      },
+      purple: {
+        iconBg: isDark ? 'bg-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-purple-50',
+        iconText: isDark ? 'text-purple-300' : 'text-purple-600',
+        glow: isDark ? 'hover:shadow-purple-500/20 hover:border-purple-500/40' : 'hover:shadow-purple-500/20 hover:border-purple-200',
+        badge: isDark ? 'bg-purple-400/10 text-purple-300' : 'bg-purple-50 text-purple-600'
+      }
+    };
+
+    return colors[color] || colors.blue;
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h2 className={`text-3xl font-bold ${styles.textMain} animate-in slide-in-from-bottom duration-700 flex items-center`}>
             Welcome, <span className="text-blue-500 ml-2">{user.name}</span>
-            <span className="inline-block animate-bounce ml-2">👋</span>
           </h2>
           <p className={`${styles.textSub} mt-1 animate-in slide-in-from-bottom duration-700 delay-150`}>
             Your intelligent document analysis dashboard is ready.
@@ -44,27 +77,31 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, documents, theme, s
           { label: 'AI Conversations', val: '9', icon: Bot, change: '+2', color: 'emerald' }, 
           { label: 'Groups Joined', val: '4', icon: Users, change: 'New', color: 'amber' }, 
           { label: 'Queries Today', val: '45', icon: TrendingUp, change: '+12%', color: 'purple' },
-        ].map((stat, i) => (
-          <div 
-            key={i} 
-            className={`${styles.cardBg} p-6 rounded-2xl border ${styles.border} shadow-sm flex flex-col justify-between 
-              transform transition-all duration-300 hover:scale-105 hover:-translate-y-2 hover:shadow-2xl cursor-default animate-in zoom-in duration-500`}
-            style={{ animationDelay: `${i * 100}ms` }}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-xl ${theme === 'dark' ? `bg-${stat.color}-500/10 text-${stat.color}-400` : `bg-${stat.color}-50 text-${stat.color}-600`}`}>
-                <stat.icon size={24} />
+        ].map((stat, i) => {
+          const colorStyle = getColorStyles(stat.color);
+          
+          return (
+            <div 
+              key={i} 
+              className={`${styles.cardBg} p-6 rounded-2xl border ${styles.border} shadow-lg flex flex-col justify-between 
+                transform transition-all duration-300 hover:scale-105 hover:-translate-y-2 cursor-default animate-in zoom-in duration-500 ${colorStyle.glow}`}
+              style={{ animationDelay: `${i * 100}ms` }}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className={`p-3.5 rounded-xl ${colorStyle.iconBg} ${colorStyle.iconText} backdrop-blur-md transition-colors duration-300`}>
+                  <stat.icon size={26} />
+                </div>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${colorStyle.badge}`}>
+                  {stat.change}
+                </span>
               </div>
-              <span className={`text-xs font-bold px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500`}>
-                {stat.change}
-              </span>
+              <div>
+                <h3 className={`text-3xl font-bold ${styles.textMain} mb-1`}>{stat.val}</h3>
+                <p className={`text-sm ${styles.textSub}`}>{stat.label}</p>
+              </div>
             </div>
-            <div>
-              <h3 className={`text-3xl font-bold ${styles.textMain} mb-1`}>{stat.val}</h3>
-              <p className={`text-sm ${styles.textSub}`}>{stat.label}</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className={`${styles.cardBg} rounded-2xl border ${styles.border} shadow-sm overflow-hidden animate-in slide-in-from-bottom duration-700 delay-300`}>
@@ -81,8 +118,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, documents, theme, s
               className={`p-4 flex items-center justify-between hover:bg-white/5 transition border-b ${styles.border} last:border-0 cursor-pointer group`}
             >
               <div className="flex items-center">
-                <div className={`p-2 rounded-lg mr-4 transition-colors group-hover:text-blue-500 ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                  <Search size={16} className={styles.textSub} />
+                <div className={`p-2 rounded-lg mr-4 transition-colors group-hover:text-blue-500 ${theme === 'dark' ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                  <Search size={16} />
                 </div>
                 <div>
                   <p className={`text-sm font-medium ${styles.textMain} group-hover:text-blue-400 transition-colors`}>"{item.query}"</p>
