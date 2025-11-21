@@ -11,6 +11,31 @@ import DocumentAnalysisView from './components/DocumentAnalysisView';
 import GroupChatView from './components/GroupChatView';
 import SupportView from './components/SupportView';
 
+// Firebase Imports
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, UserCredential } from 'firebase/auth';
+
+// --- FIREBASE CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY,
+  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: `${(import.meta as any).env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+  messagingSenderId: "YOUR_SENDER_ID", 
+  appId: "YOUR_APP_ID" 
+};
+
+// Initialize Firebase
+let firebaseApp: FirebaseApp;
+let auth: any;
+
+try {
+  firebaseApp = initializeApp(firebaseConfig);
+  auth = getAuth(firebaseApp);
+} catch (error) {
+  console.error("Firebase Initialization Error: Check your .env variables!", error);
+}
+
 export default function App() {
   // --- State Management ---
   const [user, setUser] = useState<User | null>(null);
@@ -25,58 +50,109 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // --- Actions ---
+  // --- Helpers ---
+  const getFormValues = (e: React.FormEvent<HTMLFormElement>, names: string[]) => {
+    return names.reduce((acc, name) => {
+      const element = (e.currentTarget.elements.namedItem(name) as HTMLInputElement);
+      if (element) {
+        acc[name] = element.value;
+      }
+      return acc;
+    }, {} as Record<string, string>);
+  };
+
+  // --- Authentication Actions ---
   
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setAuthError(null);
-    setTimeout(() => {
-      // Simulate API Response
-      const mockUser: User = { 
-        uid: 'user-1', 
-        email: 'user@example.com', 
-        name: 'John Doe',
-        role: 'Senior Engineer',
-        company: 'Tech Corp',
+
+    const values = getFormValues(e as React.FormEvent<HTMLFormElement>, ['email', 'password']);
+    const { email, password } = values;
+
+    try {
+      // Firebase Sign In
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      const userData: User = { 
+        uid: firebaseUser.uid, 
+        email: firebaseUser.email || email, 
+        name: firebaseUser.displayName || email.split('@')[0], // Fallback name
+        role: 'User', // Default role
+        company: 'Tech Corp', // Default company
         theme: 'dark', 
-        storageUsed: 450,
-        storageLimit: 1000,
-        preferences: { aiSuggestions: true, topics: ['Engineering'] }
-      };
-      setUser(mockUser);
-      setTheme(mockUser.theme);
-      setView('dashboard');
-      setLoading(false);
-    }, 800);
-  };
-
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const formData = new FormData(e.target as HTMLFormElement);
-    const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
-    const company = formData.get('company') as string;
-    const preferredTheme = formData.get('theme') as Theme;
-
-    setTimeout(() => {
-      const newUser: User = { 
-        uid: 'user-new', 
-        email: email, 
-        name: name,
-        company: company,
-        role: 'Admin',
-        theme: preferredTheme,
         storageUsed: 0,
         storageLimit: 1000,
         preferences: { aiSuggestions: true, topics: [] }
       };
+
+      setUser(userData);
+      setView('dashboard');
+
+    } catch (error: any) {
+      console.error("Firebase Login Error:", error);
+      let message = 'Login failed. Please check your credentials.';
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        message = 'Invalid email or password.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'The email address is not valid.';
+      }
+      setAuthError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setAuthError(null);
+
+    const values = getFormValues(e as React.FormEvent<HTMLFormElement>, ['email', 'password', 'confirmPassword', 'name', 'company', 'theme']);
+    const { email, password, confirmPassword, name, company, theme: formTheme } = values;
+    
+    if (password !== confirmPassword) {
+      setAuthError('Passwords do not match.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Firebase Create User
+      const userCredential: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      const newUser: User = { 
+        uid: firebaseUser.uid, 
+        email: email, 
+        name: name || 'New User',
+        company: company || 'Company',
+        role: 'Admin',
+        theme: (formTheme as Theme) || 'dark',
+        storageUsed: 0,
+        storageLimit: 1000,
+        preferences: { aiSuggestions: true, topics: [] }
+      };
+
       setUser(newUser);
       setTheme(newUser.theme); 
       setView('dashboard'); 
+
+    } catch (error: any) {
+      console.error("Firebase Registration Error:", error);
+      let message = 'Registration failed. Please try again.';
+      
+      if (error.code === 'auth/email-already-in-use') {
+        message = 'This email is already registered.';
+      } else if (error.code === 'auth/weak-password') {
+        message = 'Password must be at least 6 characters';
+      }
+      setAuthError(message);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const handleUpload = (file: File) => {
@@ -144,7 +220,7 @@ export default function App() {
 
   if (!user) {
     if (view === 'register') {
-       return <RegisterScreen onRegister={handleRegister} onNavigateToLogin={() => setView('login')} loading={loading} />;
+       return <RegisterScreen onRegister={handleRegister} onNavigateToLogin={() => setView('login')} loading={loading} error={authError} />;
     }
     return <AuthScreen onLogin={handleLogin} onNavigateToRegister={() => setView('register')} loading={loading} error={authError} />;
   }
