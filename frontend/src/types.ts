@@ -1,0 +1,69 @@
+export type Theme = 'dark' | 'light';
+export type ViewState = 'login' | 'register' | 'dashboard' | 'library' | 'community' | 'support' | 'doc-read';
+
+export interface UserPreferences {
+  aiSuggestions: boolean;
+  topics: string[];
+}
+
+export interface User {
+  uid: string;
+  email: string;
+  name: string;
+  company?: string;
+  role: string;
+  theme: Theme; 
+  storageUsed: number; 
+  storageLimit: number; 
+  preferences: UserPreferences;
+}
+
+export interface Message {
+  id: string;
+  sender: 'user' | 'ai' | 'other-user' | 'support';
+  senderName?: string;
+  text: string;
+  referenceId?: number; 
+  timestamp?: string;
+}
+
+export interface DocumentData {
+  id: string;
+  title: string;
+  ownerId: string;
+  ownerName: string;
+  isPublic: boolean;
+  summary: string;
+  content: string[];
+  uploadDate: string;
+  fileSize: string;
+  type: string; 
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  members: number;
+  active: boolean;
+  relatedDocId: string;
+  relatedDocTitle: string;
+  type: 'public' | 'private'; 
+  orgName?: string; 
+  tags?: string[]; 
+}
+
+export interface HistoryItem {
+  id: string;
+  query: string;
+  docTitle: string;
+  date: string;
+  docId: string;
+}
+
+export interface ChatMember {
+  id: string;
+  name: string;
+  role: string;
+  status: 'online' | 'away' | 'offline';
+}
