@@ -5,10 +5,6 @@ from firebase_admin.exceptions import FirebaseError
 from django.http import JsonResponse
 from functools import wraps
 
-# CRITICAL: We don't import 'db' here, as it's not used in authentication logic, 
-# preventing circular imports if 'db' uses 'auth' or 'views'.
-# from config.firebase_config import db 
-
 def get_uid_from_request(request):
     """
     Attempts to extract and verify the Firebase ID Token from the Authorization header.
@@ -40,22 +36,31 @@ def get_uid_from_request(request):
         return None, f"Unexpected Error: {str(e)}"
     
 def firebase_auth_required(view_func):
-    """Decorator to require Firebase authentication for a view."""
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
-        # 1. Get UID from request
-        uid, error = get_uid_from_request(request)
-        
-        if not uid:
-            # 2. Return 401 Unauthorized if verification fails
-            return JsonResponse(
-                {'error': 'Unauthorized', 'detail': error}, 
-                status=401
-            )
-        
-        # 3. Attach UID to the request object and call the original view
-        # The view can now access the verified user ID via request.user_id
-        request.user_id = uid 
-        return view_func(request, *args, **kwargs)
+        # 1. Check for Authorization Header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return JsonResponse({'error': 'Missing or invalid Authorization header'}, status=401)
+
+        token = auth_header.split(' ')[1]
+
+        try:
+            # 2. Verify the Token with Firebase Admin
+            decoded_token = auth.verify_id_token(token)
+            
+            # 3. Attach User ID to the request object
+            # This allows views.py to access 'request.user_id'
+            request.user_id = decoded_token['uid']
+            
+            return view_func(request, *args, **kwargs)
+            
+        except auth.ExpiredIdTokenError:
+            return JsonResponse({'error': 'Token expired'}, status=401)
+        except auth.InvalidIdTokenError:
+            return JsonResponse({'error': 'Invalid token'}, status=401)
+        except Exception as e:
+            print(f"Auth Error: {e}")
+            return JsonResponse({'error': 'Authentication failed'}, status=401)
 
     return _wrapped_view

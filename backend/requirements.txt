@@ -5,3 +5,4 @@ firebase-admin
 requests
 ibm-watsonx-ai
 python-dotenv
+pypdf
