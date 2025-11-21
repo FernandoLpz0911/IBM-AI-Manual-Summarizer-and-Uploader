@@ -3,14 +3,14 @@
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
+from django.conf import settings
 import os
 
-# --- Configuration ---
-# Set the path to your service account key file
-# Consider moving this to Django settings (settings.py)
+KEY_FILENAME = 'michigan-devfest-firebase-adminsdk-fbsvc-99b6994a55.json'
+
 SERVICE_ACCOUNT_KEY_PATH = os.environ.get(
     'FIREBASE_KEY_PATH', 
-    'path/to/your/michigan-devfest-firebase-adminsdk-fbsvc-6f31ce1586.json'
+    os.path.join(settings.BASE_DIR, '..', KEY_FILENAME)
 )
 
 

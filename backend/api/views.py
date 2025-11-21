@@ -3,19 +3,7 @@
 # --- 1. Import necessary components ---
 from django.http import JsonResponse
 from firebase_admin import firestore
-# Assuming you want to use the pre-initialized db client from your config
-# If you kept the structure from the last step, you should be importing 'db'
-# from config.firebase_config import db 
-# Since you're using firestore.client() here, we'll keep it simple for now, 
-# but remember the best practice is to import the initialized client.
-
-# Create the client object here, assuming the Firebase app is initialized elsewhere
-# (e.g., in firebase_config.py, which you should ensure is imported by Django)
-try:
-    DB_CLIENT = firestore.client()
-except Exception:
-    # Fallback/Error handling if global app init failed
-    DB_CLIENT = None
+from config.firebase_config import db as DB_CLIENT # Now DB_CLIENT is the initialized object
 
 
 def save_summary_to_db(user_id, file_title, ai_summary_text):
