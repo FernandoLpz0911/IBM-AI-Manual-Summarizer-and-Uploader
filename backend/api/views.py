@@ -50,7 +50,7 @@ def get_user_library(request):
         )
 
     # 2. Query Firestore
-    docs_stream = DB_CLIENT.collection('documents').where('user_id', '==', user_id).stream()
+    docs_stream = DB_CLIENT.collection('documents').where('user_id', '==', 0).stream()
 
     library_data = []
 

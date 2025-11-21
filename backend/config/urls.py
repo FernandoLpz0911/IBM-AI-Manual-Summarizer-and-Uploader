@@ -1,18 +1,19 @@
-# backend/config/urls.py (CORRECTED)
+# backend/config/urls.py
 
-# MUST import path and include from django.urls
-from django.urls import path, include 
+# 1. IMPORT PATH AND INCLUDE
 from django.contrib import admin
-# Import views directly from your app if you're using Option B
-from api import views 
+from django.urls import path, include 
+
 
 urlpatterns = [
-    # Built-in admin path
+    # 2. ADMIN ROUTE (Standard Django)
     path('admin/', admin.site.urls),
     
-    # Path to access your Firebase view (the one that caused the error)
-    path('library/', views.get_user_library, name='user_library'),
+    # 3. API ROUTE (Directs traffic to the api application's urls.py)
+    # Any URL starting with 'api/' will now be handled by the 'api' app.
+    path('api/', include('api.urls')),
     
-    # If you have an api/urls.py, use this instead of the line above:
-    # path('api/', include('api.urls')),
+    # 4. OPTIONAL: Root Path (To fix the 404 on the base URL)
+    # You might want a base page, perhaps a redirect or a simple status view.
+    # For now, we'll leave it out, but this is why you saw the 404 on '/'
 ]
