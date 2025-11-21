@@ -10,7 +10,7 @@ import os
 # Consider moving this to Django settings (settings.py)
 SERVICE_ACCOUNT_KEY_PATH = os.environ.get(
     'FIREBASE_KEY_PATH', 
-    'path/to/your/michigan-devfest-firebase-adminsdk-xxxxx-xxxxx.json'
+    'path/to/your/michigan-devfest-firebase-adminsdk-fbsvc-6f31ce1586.json'
 )
 
 
