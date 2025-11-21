@@ -1,108 +1,130 @@
-# backend/api/views.py (Final Code)
-
-from firebase_admin import firestore
-from django.shortcuts import render
 import json
-from django.http import HttpResponse, JsonResponse
+import re
+from pypdf import PdfReader
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from firebase_admin import firestore
+
+# Custom Imports
 from config.firebase_config import db as DB_CLIENT
 from .auth import firebase_auth_required
 from .watsonx import ask_watsonx
-from pypdf import PdfReader
 
+# --- HELPER FUNCTIONS ---
 
-# --- Unprotected Template Views (Unnecessary in a React API, but kept for context) ---
-def protected_destination_view(request):
-    # This view is unprotected and serves a simple HttpResponse
-    return HttpResponse("This is the protected destination page. Welcome, authenticated user!")
-
-def home_view(request):
-    # This view is unprotected and serves a template (if one exists)
-    return render(request, 'api/home.html') 
-
-@csrf_exempt 
-@firebase_auth_required 
-def submit_document(request):
+def clean_text(text):
     """
-    Handles POST request to receive user text, run AI, and save to DB.
-    Requires a valid Firebase ID token.
+    Fixes common PDF extraction artifacts (e.g., 'W arr anty' -> 'Warranty').
     """
+    if not text: return ""
     
+    # 1. Replace multiple spaces/tabs/newlines with a single space
+    text = re.sub(r'\s+', ' ', text)
+    
+    # 2. Aggressive Fix: Merge single letters separated by spaces 
+    # Example: "N o t i c e" -> "Notice"
+    # Regex explanation: Look behind for (WordBoundary+Letter), match Space, Look ahead for (Letter+WordBoundary)
+    text = re.sub(r'(?<=\b[a-zA-Z]) (?=[a-zA-Z]\b)', '', text)
+    
+    return text.strip()
+
+# --- VIEW FUNCTIONS ---
+
+@csrf_exempt
+@firebase_auth_required
+def upload_document(request):
+    """
+    Handles PDF Uploads.
+    1. Parses PDF.
+    2. Cleans text.
+    3. Saves pages to 'pages' sub-collection (Chunking).
+    4. Saves metadata to 'documents' collection.
+    """
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
     try:
-        # 1. Get the authenticated user ID (Set by the decorator)
-        user_id = request.user_id 
+        if 'file' not in request.FILES:
+            return JsonResponse({'error': 'No file provided'}, status=400)
         
-        # 2. Parse the JSON body
-        data = json.loads(request.body)
-        file_title = data.get('title')
-        raw_content = data.get('content') 
+        uploaded_file = request.FILES['file']
+        user_id = request.user_id # From @firebase_auth_required decorator
 
-        if not file_title or not raw_content:
-            return JsonResponse({'error': 'Missing title or content'}, status=400)
-
-        # 3. --- AI/Summarization Logic Placeholder ---
-        ai_summary_text = f"AI Summary for '{file_title}': The document contains {len(raw_content)} characters."
+        # 1. Read PDF
+        reader = PdfReader(uploaded_file)
         
-        # 4. Save the data to Firestore
-        success = save_summary_to_db(user_id, file_title, ai_summary_text)
+        # 2. Prepare Firestore Batch
+        doc_ref = DB_CLIENT.collection('documents').document()
+        batch = DB_CLIENT.batch()
+        all_pages_text = []
+        
+        # 3. Iterate Pages
+        for i, page in enumerate(reader.pages):
+            raw_text = page.extract_text() or ""
+            cleaned_text = clean_text(raw_text)
+            all_pages_text.append(cleaned_text)
+            
+            # Create sub-collection document: documents/{doc_id}/pages/{page_num}
+            page_ref = doc_ref.collection('pages').document(str(i))
+            
+            batch.set(page_ref, {
+                'page_number': i,
+                'text': cleaned_text
+            })
+            
+            # Commit batch every 450 operations (Firestore limit is 500)
+            if (i + 1) % 450 == 0:
+                batch.commit()
+                batch = DB_CLIENT.batch()
+        
+        # Commit remaining pages
+        batch.commit()
 
-        if success:
-            return JsonResponse({'status': 'success', 'message': 'Document submitted and summarized.'}, status=201)
-        else:
-            return JsonResponse({'error': 'Database save failed.'}, status=500)
+        # 4. Save Metadata (Parent Document)
+        doc_ref.set({
+            'user_id': user_id,
+            'title': uploaded_file.name,
+            'summary': all_pages_text[0][:300] + "..." if all_pages_text else "No content found.",
+            'page_count': len(reader.pages),
+            'created_at': firestore.SERVER_TIMESTAMP
+        })
+        
+        return JsonResponse({
+            'message': 'Upload successful', 
+            'id': doc_ref.id, 
+            'title': uploaded_file.name,
+            'content': all_pages_text # Return text so frontend works immediately
+        })
 
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON format'}, status=400)
     except Exception as e:
-        print(f"Submission Error: {e}")
-        return JsonResponse({'error': 'Internal server error during processing.'}, status=500)
+        print(f"Upload Error: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
 
-def save_summary_to_db(user_id, file_title, ai_summary_text, full_text):
-    """Saves a single AI summary document to the Firestore 'documents' collection."""
-    if DB_CLIENT is None:
-        print("ERROR: Firestore client is not initialized.")
-        return False
-    
-    DB_CLIENT.collection('documents').add({
-        'user_id': user_id,
-        'title': file_title,
-        'summary': ai_summary_text,
-        'text': full_text,
-        'created_at': firestore.SERVER_TIMESTAMP
-    }) 
-    return True
-    
+
 @firebase_auth_required 
 def get_user_library(request):
     """
-    FETCH METADATA ONLY.
-    Loads the list of documents (Title, Summary) but NOT the full text.
-    This keeps the library page fast even with huge manuals.
+    Returns the list of documents (Metadata only) for the library view.
+    Does NOT return full content to keep load times fast.
     """
     user_id = request.user_id 
 
     if DB_CLIENT is None:
         return JsonResponse({'error': 'DB not connected'}, status=500)
 
-    # Get all documents for this user
     docs_stream = DB_CLIENT.collection('documents').where('user_id', '==', user_id).stream() 
 
     library_data = []
     for doc in docs_stream:
         doc_data = doc.to_dict()
-        
         library_data.append({
             'id': doc.id,              
             'title': doc_data.get('title', 'Untitled'), 
             'summary': doc_data.get('summary', 'No Summary'),
-            'uploadDate': doc_data.get('created_at', ''), # You might need to format this date
+            # Convert Firestore timestamp to string if needed, or let frontend handle it
+            'uploadDate': str(doc_data.get('created_at', '')), 
             'page_count': doc_data.get('page_count', 0),
-            # We return an empty content array here to keep the frontend happy.
-            # We will fetch the real content only when they click the doc.
-            'content': [] 
+            'content': [] # Empty content for lazy loading
         })
 
     return JsonResponse({'documents': library_data})
@@ -112,9 +134,8 @@ def get_user_library(request):
 @firebase_auth_required
 def get_document_content(request):
     """
-    FETCH FULL CONTENT.
     Called when a user clicks a specific document.
-    Reconstructs the full text from the 'pages' sub-collection.
+    Fetches the full text from the 'pages' sub-collection.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -126,10 +147,8 @@ def get_document_content(request):
         if not doc_id:
             return JsonResponse({'error': 'Missing doc_id'}, status=400)
             
-        # 1. Get the 'pages' sub-collection, ordered by page number
+        # Fetch pages ordered by page_number
         pages_ref = DB_CLIENT.collection('documents').document(doc_id).collection('pages')
-        
-        # Note: 'order_by' ensures pages are in the correct order (1, 2, 3...)
         pages_stream = pages_ref.order_by('page_number').stream()
         
         full_content = []
@@ -142,96 +161,72 @@ def get_document_content(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
-@firebase_auth_required
-def upload_document(request):
+def chat_with_document(request):
     """
-    Handles Large PDF Uploads by chunking.
-    Saves metadata to 'documents' collection.
-    Saves actual text pages to a 'pages' sub-collection.
+    RAG CHAT:
+    1. Receive Question + Doc ID.
+    2. Fetch all pages.
+    3. Score pages based on keyword matches.
+    4. Send top 3 pages to Watsonx.
     """
-    if request.method != 'POST':
+    if request.method != 'POST': 
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
     try:
-        if 'file' not in request.FILES:
-            return JsonResponse({'error': 'No file provided'}, status=400)
-        
-        uploaded_file = request.FILES['file']
-        user_id = request.user_id 
-
-        # 1. Read the PDF
-        reader = PdfReader(uploaded_file)
-        
-        # 2. Prepare Firestore Batch (For efficiency)
-        # We create a reference for the new parent document
-        doc_ref = DB_CLIENT.collection('documents').document()
-        
-        batch = DB_CLIENT.batch()
-        all_pages_text = []
-        
-        # 3. Iterate through pages and create "Page Chunks"
-        for i, page in enumerate(reader.pages):
-            text = page.extract_text() or ""
-            all_pages_text.append(text)
-            
-            # Reference to a new document inside the 'pages' sub-collection
-            # path: documents/{doc_id}/pages/{page_number}
-            page_ref = doc_ref.collection('pages').document(str(i))
-            
-            batch.set(page_ref, {
-                'page_number': i,
-                'text': text
-            })
-            
-            # Firestore batches allow max 500 operations. 
-            # Commit and restart batch if the PDF is huge.
-            if (i + 1) % 450 == 0:
-                batch.commit()
-                batch = DB_CLIENT.batch()
-        
-        # Commit remaining pages
-        batch.commit()
-
-        # 4. Save the Parent Metadata (Lightweight)
-        # We DO NOT save the full text here to avoid the 1MB limit.
-        doc_ref.set({
-            'user_id': user_id,
-            'title': uploaded_file.name,
-            'summary': all_pages_text[0][:300].replace('\n', ' ') + "...", # Preview from page 1
-            'page_count': len(reader.pages),
-            'created_at': firestore.SERVER_TIMESTAMP
-        })
-        
-        # 5. Return data to Frontend
-        # We send the text back NOW so the user can see it immediately 
-        # without needing to re-fetch it from the DB.
-        return JsonResponse({
-            'message': 'Upload successful', 
-            'id': doc_ref.id, 
-            'title': uploaded_file.name,
-            # We return the array of strings so your App.tsx can display it
-            'content': all_pages_text 
-        })
-
-    except Exception as e:
-        print(f"Upload Error: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
-    
-@csrf_exempt
-def chat_with_document(request):
-    """POST: Chat with AI"""
-    # No Auth required for demo speed
-    if request.method != 'POST': return JsonResponse({'error': 'Method not allowed'}, status=405)
-
-    try:
         data = json.loads(request.body)
-        question = data.get('question')
-        context = data.get('full_document_text')
+        question = data.get('question', '')
+        doc_id = data.get('doc_id')
 
-        # Call WatsonX
-        ai_response = ask_watsonx(context, question)
+        if not question or not doc_id:
+            return JsonResponse({'error': 'Missing question or doc_id'}, status=400)
+
+        # 1. Fetch Pages
+        pages_ref = DB_CLIENT.collection('documents').document(doc_id).collection('pages')
+        pages_stream = pages_ref.stream()
+
+        # 2. RAG Keyword Scoring
+        query_words = set(question.lower().split())
+        scored_pages = []
+
+        for page in pages_stream:
+            page_data = page.to_dict()
+            text = page_data.get('text', '').lower()
+            page_num = page_data.get('page_number', 0)
+            
+            score = 0
+            for word in query_words:
+                score += text.count(word)
+            
+            if score > 0:
+                scored_pages.append({
+                    'text': page_data.get('text', ''), 
+                    'score': score, 
+                    'index': page_num
+                })
+
+        # 3. Sort & Pick Top 3
+        top_pages = sorted(scored_pages, key=lambda x: x['score'], reverse=True)[:3]
+        
+        # Fallback: If no keywords match, use the first page (Introduction) 
+        # so the AI has *something* to work with.
+        if not top_pages:
+            print("RAG: No keywords found. Using page 0 context.")
+            first_page = pages_ref.document('0').get()
+            if first_page.exists:
+                top_pages = [{'text': first_page.to_dict().get('text', ''), 'index': 0}]
+
+        # 4. Construct Context
+        rag_context = ""
+        for p in top_pages:
+            rag_context += f"--- Page {p['index']} ---\n{p['text']}\n\n"
+
+        # 5. Send to AI
+        ai_response = ask_watsonx(rag_context, question)
         
         return JsonResponse(ai_response)
+
     except Exception as e:
+        print(f"Chat Error: {e}")
         return JsonResponse({'error': str(e)}, status=500)

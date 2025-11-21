@@ -185,10 +185,16 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: userMsg.text,
-          full_document_text: activeDoc.content.join('\n')
+          
+          // --- CHANGE THIS ---
+          // OLD: full_document_text: activeDoc.content.join('\n')
+          // NEW: Send the ID so backend can perform RAG
+          doc_id: activeDoc.id 
         })
       });
+      
       const data = await response.json();
+      
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
