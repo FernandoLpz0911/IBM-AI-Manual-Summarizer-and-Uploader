@@ -3,14 +3,16 @@ import {
   Send, 
   Bot, 
   User, 
-  HelpCircle, 
   ChevronRight, 
   MessageSquare, 
   Search, 
   FileQuestion, 
   CreditCard, 
   Settings,
-  ArrowLeft
+  ArrowLeft,
+  ShieldCheck,
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import { Theme, Message } from '../types';
 
@@ -19,7 +21,90 @@ interface SupportViewProps {
   onBack: () => void;
 }
 
+// --- Sub-Page Components ---
+
+const DetailPageHeader = ({ title, onBack, theme }: { title: string, onBack: () => void, theme: Theme }) => (
+  <div className="mb-8 flex items-center space-x-4">
+    <button 
+      onClick={onBack}
+      className={`p-2 rounded-lg hover:bg-slate-700/20 transition-colors ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}
+    >
+      <ArrowLeft size={24} />
+    </button>
+    <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>{title}</h2>
+  </div>
+);
+
+const UploadIssuesPage = ({ theme, onBack }: { theme: Theme, onBack: () => void }) => (
+  <div className="animate-in slide-in-from-right duration-300">
+    <DetailPageHeader title="Upload Troubleshooting" onBack={onBack} theme={theme} />
+    <div className={`p-6 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
+      <div className="flex items-start space-x-4 mb-6">
+        <div className="p-3 rounded-full bg-red-100 text-red-600">
+          <AlertCircle size={24} />
+        </div>
+        <div>
+          <h3 className={`font-semibold text-lg mb-2 ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Common PDF Errors</h3>
+          <p>If your PDF is failing to process, please ensure it meets the following criteria:</p>
+          <ul className="list-disc ml-5 mt-2 space-y-1">
+            <li>File size is under 25MB</li>
+            <li>PDF is not password protected</li>
+            <li>Text is selectable (not a flattened image)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const BillingPage = ({ theme, onBack }: { theme: Theme, onBack: () => void }) => (
+  <div className="animate-in slide-in-from-right duration-300">
+    <DetailPageHeader title="Billing & Plans" onBack={onBack} theme={theme} />
+    <div className={`p-6 rounded-xl border mb-4 ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
+      <h3 className={`font-semibold mb-4 ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Current Subscription</h3>
+      <div className="flex justify-between items-center p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+        <div>
+          <div className="font-bold text-blue-500">Pro Plan</div>
+          <div className="text-xs text-blue-400">$29.00 / month</div>
+        </div>
+        <button className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600">Manage</button>
+      </div>
+    </div>
+    <div className={`p-6 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
+      <h3 className={`font-semibold mb-4 ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Invoices</h3>
+      <div className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No recent invoices found.</div>
+    </div>
+  </div>
+);
+
+const SettingsPage = ({ theme, onBack }: { theme: Theme, onBack: () => void }) => (
+  <div className="animate-in slide-in-from-right duration-300">
+    <DetailPageHeader title="Account Settings" onBack={onBack} theme={theme} />
+    <div className="space-y-4">
+      <button className={`w-full flex items-center justify-between p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700'} hover:border-blue-500 transition-colors`}>
+        <div className="flex items-center space-x-3">
+          <ShieldCheck size={20} />
+          <span>Security & Password</span>
+        </div>
+        <ChevronRight size={16} />
+      </button>
+      <button className={`w-full flex items-center justify-between p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700'} hover:border-blue-500 transition-colors`}>
+        <div className="flex items-center space-x-3">
+          <FileText size={20} />
+          <span>Export Data</span>
+        </div>
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  </div>
+);
+
+// --- Main Component ---
+
 const SupportView: React.FC<SupportViewProps> = ({ theme, onBack }) => {
+  // State to track which sub-page is open (null = main dashboard)
+  const [activePage, setActivePage] = useState<'upload' | 'billing' | 'settings' | null>(null);
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -84,8 +169,12 @@ const SupportView: React.FC<SupportViewProps> = ({ theme, onBack }) => {
     }, 1500);
   };
 
-  const FaqItem = ({ icon: Icon, title, desc }: { icon: any, title: string, desc: string }) => (
-    <button className={`w-full text-left p-4 rounded-xl border ${styles.border} ${styles.cardBg} hover:border-blue-500 transition-all group flex items-start space-x-4`}>
+  // Updated FaqItem to accept an onClick prop
+  const FaqItem = ({ icon: Icon, title, desc, onClick }: { icon: any, title: string, desc: string, onClick: () => void }) => (
+    <button 
+      onClick={onClick}
+      className={`w-full text-left p-4 rounded-xl border ${styles.border} ${styles.cardBg} hover:border-blue-500 transition-all group flex items-start space-x-4`}
+    >
       <div className={`p-3 rounded-lg bg-blue-500/10 text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors`}>
         <Icon size={20} />
       </div>
@@ -115,34 +204,63 @@ const SupportView: React.FC<SupportViewProps> = ({ theme, onBack }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Resources */}
+        {/* Left Column: Resources / Content Area */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="relative mb-6">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-slate-400" />
-            </div>
-            <input 
-                type="text" 
-                className={`block w-full pl-10 pr-3 py-3 rounded-xl border leading-5 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}
-                placeholder="Search help articles..."
-            />
-          </div>
-
-          <h3 className={`font-semibold ${styles.textMain} px-1`}>Common Topics</h3>
-          <FaqItem icon={FileQuestion} title="Upload Issues" desc="Troubleshoot PDF processing errors" />
-          <FaqItem icon={CreditCard} title="Billing & Plans" desc="Manage subscriptions and invoices" />
-          <FaqItem icon={Settings} title="Account Settings" desc="Password reset and profile management" />
           
-          <div className={`mt-8 p-6 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg`}>
-            <h4 className="font-bold text-lg mb-2">Need human help?</h4>
-            <p className="text-blue-100 text-sm mb-4">Our support team is available Mon-Fri, 9am - 5pm EST.</p>
-            <button className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-50 transition-colors w-full">
-              Contact Support
-            </button>
-          </div>
+          {/* Dynamic Content Switching */}
+          {activePage === null ? (
+            // Default View (List of Buttons)
+            <>
+              <div className="relative mb-6">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-slate-400" />
+                </div>
+                <input 
+                    type="text" 
+                    className={`block w-full pl-10 pr-3 py-3 rounded-xl border leading-5 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}
+                    placeholder="Search help articles..."
+                />
+              </div>
+
+              <h3 className={`font-semibold ${styles.textMain} px-1`}>Common Topics</h3>
+              <FaqItem 
+                icon={FileQuestion} 
+                title="Upload Issues" 
+                desc="Troubleshoot PDF processing errors"
+                onClick={() => setActivePage('upload')} 
+              />
+              <FaqItem 
+                icon={CreditCard} 
+                title="Billing & Plans" 
+                desc="Manage subscriptions and invoices" 
+                onClick={() => setActivePage('billing')} 
+              />
+              <FaqItem 
+                icon={Settings} 
+                title="Account Settings" 
+                desc="Password reset and profile management" 
+                onClick={() => setActivePage('settings')} 
+              />
+              
+              <div className={`mt-8 p-6 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg`}>
+                <h4 className="font-bold text-lg mb-2">Need human help?</h4>
+                <p className="text-blue-100 text-sm mb-4">Our support team is available Mon-Fri, 9am - 5pm EST.</p>
+                <button className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-50 transition-colors w-full">
+                  Contact Support
+                </button>
+              </div>
+            </>
+          ) : activePage === 'upload' ? (
+            <UploadIssuesPage theme={theme} onBack={() => setActivePage(null)} />
+          ) : activePage === 'billing' ? (
+            <BillingPage theme={theme} onBack={() => setActivePage(null)} />
+          ) : (
+            <SettingsPage theme={theme} onBack={() => setActivePage(null)} />
+          )}
+
         </div>
 
-        {/* Right Column: Chatbot */}
+        {/* Right Column: Chatbot (Stays persistent) */}
         <div className="lg:col-span-2">
           <div className={`flex flex-col h-[600px] rounded-2xl border ${styles.border} ${styles.cardBg} shadow-xl overflow-hidden`}>
             {/* Chat Header */}

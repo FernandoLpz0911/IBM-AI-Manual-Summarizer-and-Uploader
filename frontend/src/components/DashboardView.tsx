@@ -69,7 +69,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, documents, theme, s
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h2 className={`text-3xl font-bold ${styles.textMain} animate-in slide-in-from-bottom duration-700 flex items-center`}>
-            Welcome, <span className="text-blue-500 ml-2">{user.name}</span>
+            Welcome, <span className="text-blue-500 ml-2">{" to DocuMind"}</span>
           </h2>
           <p className={`${styles.textSub} mt-1 animate-in slide-in-from-bottom duration-700 delay-150`}>
             Your intelligent document analysis dashboard is ready.
