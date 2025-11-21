@@ -30,14 +30,15 @@ export interface Message {
 export interface DocumentData {
   id: string;
   title: string;
-  ownerId: string;
-  ownerName: string;
-  isPublic: boolean;
+  ownerId: string; // Made optional to support backend data which might not return it
+  ownerName: string; // Made optional
+  isPublic: boolean; // Made optional
   summary: string;
-  content: string[];
-  uploadDate: string;
-  fileSize: string;
-  type: string; 
+  content?: string[]; // Made optional as backend sends 'text' instead
+  text?: string;      // <--- ADDED: This fixes the error
+  uploadDate?: string; // Made optional
+  fileSize?: string;   // Made optional
+  type?: string;       // Made optional
 }
 
 export interface Group {

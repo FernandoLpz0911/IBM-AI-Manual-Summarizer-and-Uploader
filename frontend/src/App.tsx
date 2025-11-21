@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { User, DocumentData, Group, Message, ViewState, Theme } from './types';
-import { MOCK_GROUPS, MOCK_CHATS } from './constants'; // Removed MOCK_DOCS
 import Navbar from './components/Navbar';
 import AuthScreen from './components/AuthScreen';
 import RegisterScreen from './components/RegisterScreen';
