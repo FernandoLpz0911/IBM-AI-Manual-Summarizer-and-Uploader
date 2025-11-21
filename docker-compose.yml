@@ -20,5 +20,5 @@ services:
     volumes:
       - ./backend:/app
     env_file:
-      - ./backend/.env  # <--- This loads the variables from your file automatically
+      - ./backend/env  # <--- This loads the variables from your file automatically
     command: python manage.py runserver 0.0.0.0:8000
