@@ -19,4 +19,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    environment:
+      - WATSONX_APIKEY=OjWGkLyqOveqaNskUgRPRklRHvDvX9NhzC6qcpQBlgoX
+      - PROJECT_ID=5d8db282-3963-48df-a6d2-b56c9dd13bfe
     command: python manage.py runserver 0.0.0.0:8000

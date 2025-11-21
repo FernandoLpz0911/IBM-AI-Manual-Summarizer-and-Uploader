@@ -3,8 +3,9 @@ from . import views # <-- Import views from the local directory
 
 # Define the URL patterns for the 'api' app
 urlpatterns = [
-    # Example: Home page view defined in api/views.py
+    path('library/', views.get_user_library, name='user_library'),
+    path('upload/', views.upload_document, name='upload_document'),
+    path('chat/', views.chat_with_document, name='chat_with_document'),
     path('', views.home_view, name='home'),
-    # Example: The protected view the button links to
     path('protected-destination/', views.protected_destination_view, name='protected_destination'),
 ]

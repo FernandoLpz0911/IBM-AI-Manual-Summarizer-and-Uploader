@@ -37,12 +37,12 @@ const firebaseConfig = {
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
-  messagingSenderId: "YOUR_SENDER_ID", // Optional: Add to .env if needed
-  appId: "YOUR_APP_ID" // Optional: Add to .env if needed
+  messagingSenderId: "YOUR_SENDER_ID", // Optional
+  appId: "YOUR_APP_ID" // Optional
 };
 
-// Initialize Firebase client and Auth instance
-// We add a try-catch block to prevent the white screen if config is missing
+// Initialize Firebase
+// Wrapped in try-catch to prevent app crashing if env vars are missing
 let firebaseApp: FirebaseApp;
 let auth: any;
 
@@ -50,7 +50,7 @@ try {
   firebaseApp = initializeApp(firebaseConfig);
   auth = getAuth(firebaseApp);
 } catch (error) {
-  console.error("Firebase Initialization Error: Check your .env variables!", error);
+  console.error("Firebase Init Error: Check .env or Docker env variables.", error);
 }
 
 /**
@@ -120,7 +120,7 @@ const MOCK_DOCS: DocumentData[] = [
  * MAIN APP COMPONENT
  */
 export default function App() {
-  // --- State Management ---
+  // --- Auth & View State ---
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<ViewType>('login');
   const [documents, setDocuments] = useState<DocumentData[]>(MOCK_DOCS);
@@ -128,6 +128,19 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   
+  // --- Chat State (NEW) ---
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
   // Helper to extract form data
   const getFormValues = (e: React.FormEvent, names: string[]) => {
     return names.reduce((acc, name) => {
@@ -203,16 +216,61 @@ export default function App() {
       console.error("Firebase Registration Error:", error);
       let message = 'Registration failed. Please try again.';
       
-      // --- FIX: Syntax Error Fixed Here ---
       if (error.code === 'auth/email-already-in-use') {
         message = 'This email is already registered.';
       } else if (error.code === 'auth/weak-password') {
-        // Fixed the broken string literal from your original code
         message = 'Password must be at least 8 characters';
       }
       setAuthError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- Chat Handler (Connects to Django/Watsonx) ---
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || !activeDoc) return;
+
+    // 1. Add User Message to UI
+    const userMsg: Message = { 
+      id: Date.now().toString(), 
+      sender: 'user', 
+      text: chatInput 
+    };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setIsTyping(true);
+
+    try {
+      // 2. Send to Django Backend
+      const response = await fetch('http://localhost:8000/api/chat/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: userMsg.text,
+          full_document_text: activeDoc.content.join('\n') // Send doc context
+        })
+      });
+
+      const data = await response.json();
+
+      // 3. Add AI Response to UI
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: 'ai',
+        text: data.answer || "I'm sorry, I couldn't generate an answer.",
+        referenceId: data.reference_index 
+      };
+      setChatMessages(prev => [...prev, aiMsg]);
+
+    } catch (error) {
+      console.error("Chat Error:", error);
+      const errorMsg: Message = { id: Date.now().toString(), sender: 'ai', text: "Error connecting to AI server." };
+      setChatMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
@@ -345,16 +403,93 @@ export default function App() {
       <main className="flex-1 md:ml-64 transition-all duration-300">
         {view === 'library' && renderLibrary()}
         
+        {/* SPLIT SCREEN: Document + AI Chat */}
         {view === 'document' && activeDoc && (
-            <div className="p-8">
-                <button onClick={() => setView('library')} className="mb-4 text-slate-500 hover:text-blue-600 flex items-center gap-2">
-                    <ChevronRight className="rotate-180" size={16}/> Back to Library
-                </button>
-                <h1 className="text-3xl font-bold mb-4">{activeDoc.title}</h1>
-                <div className="bg-white p-6 rounded-lg shadow">
-                    {activeDoc.content.map((p, i) => <p key={i} className="mb-4">{p}</p>)}
-                </div>
+          <div className="flex h-[calc(100vh-64px)] md:h-screen"> 
+            
+            {/* LEFT COLUMN: Document Text */}
+            <div className="w-1/2 p-8 overflow-y-auto border-r border-slate-200">
+              <button onClick={() => setView('library')} className="mb-4 text-slate-500 hover:text-blue-600 flex items-center gap-2">
+                <ChevronRight className="rotate-180" size={16}/> Back to Library
+              </button>
+              <h1 className="text-3xl font-bold mb-6">{activeDoc.title}</h1>
+              
+              <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                {activeDoc.content.map((paragraph, index) => (
+                  <div key={index} className="relative group">
+                    {/* Highlight paragraph if AI referenced it */}
+                    <p className={`text-slate-700 leading-relaxed p-2 rounded transition-colors ${
+                        chatMessages.some(m => m.referenceId === index) ? 'bg-yellow-100 ring-2 ring-yellow-300' : 'hover:bg-slate-50'
+                      }`}>
+                      <span className="text-xs font-bold text-slate-400 mr-2">[{index}]</span>
+                      {paragraph}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* RIGHT COLUMN: AI Chat Interface */}
+            <div className="w-1/2 flex flex-col bg-slate-50 border-l border-slate-200">
+              <div className="p-4 border-b border-slate-200 bg-white flex justify-between items-center">
+                <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                  <MessageSquare className="text-blue-600" size={20} /> 
+                  AI Assistant
+                </h3>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Watsonx.ai</span>
+              </div>
+
+              {/* Messages Area */}
+              <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                {chatMessages.length === 0 && (
+                  <div className="text-center text-slate-400 mt-10">
+                    <p>Ask a question about this document.</p>
+                  </div>
+                )}
+                
+                {chatMessages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] p-3 rounded-lg text-sm ${
+                      msg.sender === 'user' 
+                        ? 'bg-blue-600 text-white rounded-br-none' 
+                        : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm'
+                    }`}>
+                      <p>{msg.text}</p>
+                      {/* Show reference link if AI provides index */}
+                      {msg.referenceId !== undefined && msg.referenceId !== null && (
+                         <div className="mt-2 text-xs opacity-80 border-t border-blue-200/30 pt-1">
+                           Reference: Paragraph [{msg.referenceId}]
+                         </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border border-slate-200 p-3 rounded-lg rounded-bl-none shadow-sm">
+                      <Loader2 className="animate-spin text-blue-600 w-4 h-4" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input Area */}
+              <div className="p-4 bg-white border-t border-slate-200">
+                <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Ask something about this manual..."
+                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <button type="submit" disabled={isTyping || !chatInput} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                    <Send size={20} />
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>

@@ -1,13 +1,13 @@
 # backend/api/views.py (Final Code)
 
+from firebase_admin import firestore
+from django.shortcuts import render
+import json
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from config.firebase_config import db as DB_CLIENT
 from .auth import firebase_auth_required
-from django.http import JsonResponse
-from firebase_admin import firestore
-from django.shortcuts import render
-from django.http import HttpResponse
-import json
+from .watsonx import ask_watsonx
 
 
 # --- Unprotected Template Views (Unnecessary in a React API, but kept for context) ---
@@ -18,9 +18,6 @@ def protected_destination_view(request):
 def home_view(request):
     # This view is unprotected and serves a template (if one exists)
     return render(request, 'api/home.html') 
-
-
-# --- API Endpoints Protected by Firebase Token ---
 
 @csrf_exempt 
 @firebase_auth_required 
@@ -62,8 +59,7 @@ def submit_document(request):
         print(f"Submission Error: {e}")
         return JsonResponse({'error': 'Internal server error during processing.'}, status=500)
 
-
-def save_summary_to_db(user_id, file_title, ai_summary_text):
+def save_summary_to_db(user_id, file_title, ai_summary_text, full_text):
     """Saves a single AI summary document to the Firestore 'documents' collection."""
     if DB_CLIENT is None:
         print("ERROR: Firestore client is not initialized.")
@@ -73,10 +69,10 @@ def save_summary_to_db(user_id, file_title, ai_summary_text):
         'user_id': user_id,
         'title': file_title,
         'summary': ai_summary_text,
+        'text': full_text,
         'created_at': firestore.SERVER_TIMESTAMP
     }) 
     return True
-    
     
 @firebase_auth_required 
 def get_user_library(request):
@@ -107,7 +103,54 @@ def get_user_library(request):
             'id': doc.id,              
             'title': doc_data.get('title', 'No Title'), 
             'summary': doc_data.get('summary', 'No Summary'),
+            'text': doc_data.get('text', ''),
         })
 
     # 4. Return the response
     return JsonResponse({'documents': library_data})
+
+@csrf_exempt
+@firebase_auth_required
+def upload_document(request):
+    """POST: Save document to Firebase"""
+    if request.method != 'POST': return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        title = data.get('title', 'Untitled Doc')
+        text = data.get('text', '')
+        
+        # Hackathon Shortcut: Use first 150 chars as summary
+        summary = text[:150] + "..."
+        
+        # Save to Firestore
+        if DB_CLIENT:
+            DB_CLIENT.collection('documents').add({
+                'user_id': request.user_id,
+                'title': title,
+                'summary': summary,
+                'text': text, 
+                'created_at': firestore.SERVER_TIMESTAMP
+            })
+        
+        return JsonResponse({'message': 'Upload successful', 'summary': summary})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    
+@csrf_exempt
+def chat_with_document(request):
+    """POST: Chat with AI"""
+    # No Auth required for demo speed
+    if request.method != 'POST': return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        question = data.get('question')
+        context = data.get('full_document_text')
+
+        # Call WatsonX
+        ai_response = ask_watsonx(context, question)
+        
+        return JsonResponse(ai_response)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
