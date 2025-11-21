@@ -9,7 +9,7 @@ def get_iam_token():
     """
     Exchanges the API Key for a temporary Bearer Token.
     """
-    api_key = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'hack-key.json')
+    api_key = api_key = os.getenv("WATSONX_APIKEY")
     url = "https://iam.cloud.ibm.com/identity/token"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     data = f"grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey={api_key}"
