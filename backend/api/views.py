@@ -1,6 +1,7 @@
 import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from firebase_admin import firestore # <--- ADDED THIS IMPORT
 from config.firebase_config import db as DB_CLIENT
 from .auth import firebase_auth_required
 from .watsonx import ask_watsonx
@@ -37,7 +38,7 @@ def get_user_library(request):
             'id': doc.id,
             'title': data.get('title', 'Untitled'),
             'summary': data.get('summary', ''),
-            'text': data.get('text', ''), # <--- ADD THIS LINE OR THE CHAT WILL FAIL
+            'text': data.get('text', ''),
         })
 
     return JsonResponse({'documents': library_data})
@@ -56,7 +57,7 @@ def upload_document(request):
         # Hackathon Shortcut: Use first 150 chars as summary
         summary = text[:150] + "..."
         
-        # Save to Firestore
+        #YZ: Save to Firestore using the helper or direct call
         if DB_CLIENT:
             DB_CLIENT.collection('documents').add({
                 'user_id': request.user_id,
