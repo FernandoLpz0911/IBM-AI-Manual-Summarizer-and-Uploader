@@ -23,14 +23,18 @@ def get_iam_token():
         raise Exception(f"Failed to get IAM token: {response.text}")
 
 def ask_watsonx(context_text, user_question):
+    raw_text = "No output generated."
     try:
+        # 1. Define the URL (This was missing!)
+        url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2023-05-29"
+        
+        # 2. Get Token & ID
         access_token = get_iam_token()
         project_id = os.getenv("PROJECT_ID")
         
         if not project_id:
             return {"answer": "DEBUG: PROJECT_ID is missing in .env", "reference_index": None}
         
-        # We use the same prompt structure
         prompt_input = f"""<|system|>
 You are a helpful assistant for a manufacturing technician.
 CRITICAL: Output VALID JSON only.
@@ -68,15 +72,13 @@ Question:
 
 <|assistant|>
 """
-        url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2023-05-29"
-        
+
         body = {
             "input": prompt_input,
             "parameters": {
                 "decoding_method": "greedy",
                 "max_new_tokens": 300,
                 "min_new_tokens": 0,
-                # "stop_sequences": ["<|user|>"] # Optional: Tells AI to stop explicitly
                 "repetition_penalty": 1.1
             },
             "model_id": "ibm/granite-3-8b-instruct",
@@ -100,25 +102,34 @@ Question:
 
         data = response.json()
         raw_text = data['results'][0]['generated_text']
-        
-        # --- THE FIX: Smart JSON Decoding ---
+        print(f"DEBUG RAW AI OUTPUT: {raw_text}") 
+
+        # --- ROBUST PARSING ---
+        parsed_json = {}
         try:
-            # 1. Find where the JSON starts (skip any leading text)
             start_index = raw_text.find('{')
+            end_index = raw_text.rfind('}')
             
-            if start_index != -1:
-                # 2. Use raw_decode to parse JUST the first valid JSON object
-                # It ignores any garbage text that comes after it.
-                decoder = json.JSONDecoder()
-                parsed_data, _ = decoder.raw_decode(raw_text[start_index:])
-                return parsed_data
+            if start_index != -1 and end_index != -1 and start_index < end_index:
+                json_string = raw_text[start_index : end_index + 1]
+                parsed_json = json.loads(json_string)
             else:
-                return {"answer": raw_text.strip(), "reference_index": None}
+                parsed_json = {"answer": raw_text.strip(), "reference_index": None}
 
         except json.JSONDecodeError:
-            # Fallback cleanup
             clean_str = raw_text.replace("```json", "").replace("```", "").strip()
-            return {"answer": clean_str, "reference_index": None}
+            parsed_json = {"answer": clean_str, "reference_index": None}
+
+        # --- NORMALIZE KEYS ---
+        final_answer = parsed_json.get("answer") or parsed_json.get("Answer") or parsed_json.get("ANSWER") or parsed_json.get("response")
+        
+        if not final_answer:
+             final_answer = str(parsed_json)
+
+        return {
+            "answer": final_answer,
+            "reference_index": parsed_json.get("reference_index")
+        }
 
     except Exception as e:
         return {"answer": f"PYTHON SYSTEM ERROR: {str(e)}", "reference_index": None}
