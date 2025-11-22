@@ -25,16 +25,14 @@ def get_iam_token():
 def ask_watsonx(context_text, user_question):
     raw_text = "No output generated."
     try:
-        # 1. Define the URL (This was missing!)
-        url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2023-05-29"
-        
-        # 2. Get Token & ID
+        # 1. Setup
         access_token = get_iam_token()
         project_id = os.getenv("PROJECT_ID")
         
         if not project_id:
             return {"answer": "DEBUG: PROJECT_ID is missing in .env", "reference_index": None}
         
+        # 2. Prompt
         prompt_input = f"""<|system|>
 You are a helpful assistant for a manufacturing technician.
 CRITICAL: Output VALID JSON only.
@@ -42,6 +40,7 @@ CRITICAL: Output VALID JSON only.
 INSTRUCTIONS:
 1. Search "Context" for the answer. Return "reference_index".
 2. If not found (e.g. general knowledge), use your own knowledge and set "reference_index": null.
+3. If you absolutely cannot answer, return "answer": "I could not find an answer."
 
 FORMAT:
 {{
@@ -72,7 +71,8 @@ Question:
 
 <|assistant|>
 """
-
+        url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2023-05-29"
+        
         body = {
             "input": prompt_input,
             "parameters": {
@@ -95,6 +95,7 @@ Question:
             "Authorization": f"Bearer {access_token}"
         }
 
+        # 3. Request
         response = requests.post(url, headers=headers, json=body)
         
         if response.status_code != 200:
@@ -104,7 +105,7 @@ Question:
         raw_text = data['results'][0]['generated_text']
         print(f"DEBUG RAW AI OUTPUT: {raw_text}") 
 
-        # --- ROBUST PARSING ---
+        # 4. Parsing
         parsed_json = {}
         try:
             start_index = raw_text.find('{')
@@ -120,11 +121,18 @@ Question:
             clean_str = raw_text.replace("```json", "").replace("```", "").strip()
             parsed_json = {"answer": clean_str, "reference_index": None}
 
-        # --- NORMALIZE KEYS ---
-        final_answer = parsed_json.get("answer") or parsed_json.get("Answer") or parsed_json.get("ANSWER") or parsed_json.get("response")
+        # 5. Normalize & Validate (THE FIX IS HERE)
+        final_answer = None
         
-        if not final_answer:
-             final_answer = str(parsed_json)
+        # Check for various capitalization keys
+        for key in ["answer", "Answer", "ANSWER", "response"]:
+            if key in parsed_json:
+                final_answer = parsed_json[key]
+                break
+        
+        # If the answer is missing or empty string, provide a default text
+        if final_answer is None or str(final_answer).strip() == "":
+             final_answer = "I'm sorry, I couldn't find a specific answer to that question in the document or my general knowledge."
 
         return {
             "answer": final_answer,
