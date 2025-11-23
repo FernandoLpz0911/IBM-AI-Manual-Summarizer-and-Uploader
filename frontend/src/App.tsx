@@ -9,6 +9,8 @@ import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword 
 } from 'firebase/auth'; 
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 /** CONFIGURATION */
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -74,38 +76,40 @@ export default function App() {
 
   // --- API ACTIONS ---
   const fetchLibrary = async () => {
-    if (!auth.currentUser) return;
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await fetch('http://localhost:8000/api/library/', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setDocuments(data.documents || []);
-    } catch (error) {
-      console.error("Failed to load library:", error);
-    }
-  };
+  if (!auth.currentUser) return;
+  try {
+    const token = await auth.currentUser.getIdToken();
+    // CHANGED: Uses API_URL instead of hardcoded string
+    const response = await fetch(`${API_URL}/api/library/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await response.json();
+    setDocuments(data.documents || []);
+  } catch (error) {
+    console.error("Failed to load library:", error);
+  }
+};
 
   const fetchDocumentContent = async (docId: string) => {
-    if (!auth.currentUser) return [];
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await fetch('http://localhost:8000/api/doc-content/', {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ doc_id: docId })
-      });
-      const data = await response.json();
-      return data.content || [];
-    } catch (error) {
-      console.error("Failed to load content:", error);
-      return [];
-    }
-  };
+  if (!auth.currentUser) return [];
+  try {
+    const token = await auth.currentUser.getIdToken();
+    // CHANGED: Uses API_URL
+    const response = await fetch(`${API_URL}/api/doc-content/`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ doc_id: docId })
+    });
+    const data = await response.json();
+    return data.content || [];
+  } catch (error) {
+    console.error("Failed to load content:", error);
+    return [];
+  }
+};
 
   const handleDocumentClick = async (doc: DocumentData) => {
     setDocLoading(true);
@@ -123,71 +127,73 @@ export default function App() {
 
   // --- UPLOAD HANDLER ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    if (!user) return;
+  if (!e.target.files || e.target.files.length === 0) return;
+  if (!user) return;
 
-    const file = e.target.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const tempId = Date.now().toString();
-    const tempDoc: DocumentData = {
-      id: tempId, title: file.name, summary: 'Uploading...', content: [], uploadDate: 'Just now'
-    };
-    setDocuments(prev => [tempDoc, ...prev]);
-
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('http://localhost:8000/api/upload/', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-      fetchLibrary(); 
-
-    } catch (error) {
-      console.error("Upload Error:", error);
-      alert("Failed to upload PDF.");
-      setDocuments(prev => prev.filter(d => d.id !== tempId));
-    }
+  const file = e.target.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const tempId = Date.now().toString();
+  const tempDoc: DocumentData = {
+    id: tempId, title: file.name, summary: 'Uploading...', content: [], uploadDate: 'Just now'
   };
+  setDocuments(prev => [tempDoc, ...prev]);
+
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    // CHANGED: Uses API_URL
+    const response = await fetch(`${API_URL}/api/upload/`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+
+    if (!response.ok) throw new Error('Upload failed');
+    fetchLibrary(); 
+
+  } catch (error) {
+    console.error("Upload Error:", error);
+    alert("Failed to upload PDF.");
+    setDocuments(prev => prev.filter(d => d.id !== tempId));
+  }
+};
 
   // --- CHAT HANDLER ---
   const handleSendMessage = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!chatInput.trim() || !activeDoc) return;
+  if (e) e.preventDefault();
+  if (!chatInput.trim() || !activeDoc) return;
 
-    const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: chatInput };
-    setChatMessages(prev => [...prev, userMsg]);
-    setChatInput('');
-    setIsTyping(true);
+  const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: chatInput };
+  setChatMessages(prev => [...prev, userMsg]);
+  setChatInput('');
+  setIsTyping(true);
 
-    try {
-      const response = await fetch('http://localhost:8000/api/chat/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: userMsg.text,
-          doc_id: activeDoc.id 
-        })
-      });
-      
-      const data = await response.json();
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: 'ai',
-        text: data.answer || "I'm sorry, I couldn't generate an answer.",
-        referenceId: data.reference_index 
-      };
-      setChatMessages(prev => [...prev, aiMsg]);
-    } catch (error) {
-      setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'ai', text: "Error connecting to AI server." }]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
+  try {
+    // CHANGED: Uses API_URL
+    const response = await fetch(`${API_URL}/api/chat/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: userMsg.text,
+        doc_id: activeDoc.id 
+      })
+    });
+    
+    const data = await response.json();
+    const aiMsg: Message = {
+      id: (Date.now() + 1).toString(),
+      sender: 'ai',
+      text: data.answer || "I'm sorry, I couldn't generate an answer.",
+      referenceId: data.reference_index 
+    };
+    setChatMessages(prev => [...prev, aiMsg]);
+  } catch (error) {
+    setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'ai', text: "Error connecting to AI server." }]);
+  } finally {
+    setIsTyping(false);
+  }
+};
 
   // --- AUTH HELPERS ---
   const getFormValues = (e: React.FormEvent, names: string[]) => {
