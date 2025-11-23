@@ -204,26 +204,62 @@ export default function App() {
     }, {} as Record<string, string>);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setAuthError(null);
-    const { email, password } = getFormValues(e, ['email', 'password']);
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setAuthError(null);
+
+    // --- NEW: Simpler Form Handling ---
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    // ----------------------------------
+
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      setUser({ uid: cred.user.uid, email: cred.user.email || email, name: cred.user.displayName || 'User' });
-      setView('library');
-    } catch (err: any) { setAuthError("Invalid credentials."); } finally { setLoading(false); }
-  };
+      // Ensure 'setUser' is passed as a prop or imported from context
+      setUser({ 
+          uid: cred.user.uid, 
+          email: cred.user.email || email, 
+          name: cred.user.displayName || 'User' 
+      });
+      // setView('library'); // Uncomment if setView is available here
+    } catch (err: any) { 
+        setAuthError("Invalid credentials."); 
+    } finally { 
+        setLoading(false); 
+    }
+};
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setAuthError(null);
-    const { email, password, confirmPassword, name } = getFormValues(e, ['email', 'password', 'confirmPassword', 'name']);
-    if (password !== confirmPassword) { setAuthError("Passwords do not match"); setLoading(false); return; }
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setAuthError(null);
+
+    // --- NEW: Simpler Form Handling ---
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    const confirmPassword = formData.get('confirmPassword') as string;
+    const name = formData.get('name') as string;
+    // ----------------------------------
+
+    if (password !== confirmPassword) {
+        setAuthError("Passwords do not match");
+        setLoading(false);
+        return;
+    }
+
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       setUser({ uid: cred.user.uid, email: email, name: name || 'User' });
-      setView('library');
-    } catch (err: any) { setAuthError(err.message); } finally { setLoading(false); }
-  };
+      // setView('library');
+    } catch (err: any) { 
+        setAuthError(err.message); 
+    } finally { 
+        setLoading(false); 
+    }
+};
 
   // --- RENDERERS ---
 
