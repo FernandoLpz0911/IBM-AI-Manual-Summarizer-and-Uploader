@@ -252,8 +252,6 @@ export default function App() {
     }
 };
 
-  // --- RENDERERS ---
-
   const renderAuthScreen = () => (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 text-zinc-200">
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
