@@ -1,3 +1,4 @@
+// src/components/AuthScreen.tsx
 import React from 'react';
 import { BookOpen, Loader2 } from 'lucide-react';
 
@@ -5,7 +6,6 @@ interface AuthScreenProps {
   onLogin: (e: React.FormEvent) => void;
   onNavigateToRegister: () => void;
   loading: boolean;
-  // Optional: Add error display prop
   error: string | null;
 }
 
@@ -21,9 +21,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onNavigateToRegister, 
         <h1 className="text-2xl font-bold text-white">DocuMind AI</h1>
         <p className="text-blue-200">Intelligent Document Analysis</p>
       </div>
+      
       <form onSubmit={onLogin} className="space-y-4">
-        
-        {/* Error Display */}
         {error && (
             <div className="bg-red-500 text-white text-sm p-3 rounded-lg text-center font-medium">
                 {error}
@@ -35,7 +34,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onNavigateToRegister, 
           <input 
             required 
             type="email" 
-            name="email"  {/* ✅ ADDED NAME */}
+            name="email"
             className="mt-1 w-full px-4 py-2 bg-slate-800/50 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-white outline-none placeholder-slate-400 transition" 
             placeholder="demo@example.com" 
           />
@@ -45,7 +44,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onNavigateToRegister, 
           <input 
             required 
             type="password" 
-            name="password" {/* ✅ ADDED NAME */}
+            name="password"
             className="mt-1 w-full px-4 py-2 bg-slate-800/50 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-white outline-none placeholder-slate-400 transition" 
             placeholder="••••••••" 
           />

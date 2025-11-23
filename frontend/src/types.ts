@@ -1,4 +1,4 @@
-export type Theme = 'dark' | 'light';
+export type Theme = 'light' | 'dark';
 export type ViewState = 'login' | 'register' | 'dashboard' | 'library' | 'community' | 'support' | 'doc-read';
 
 export interface UserPreferences {
