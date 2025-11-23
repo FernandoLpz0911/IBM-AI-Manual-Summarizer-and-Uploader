@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Hash, Shield, MessageSquare, ArrowRight } from 'lucide-react';
+import { Users, Hash, Shield } from 'lucide-react';
 import { Group, Theme } from '../types';
 import { MOCK_GROUPS } from '../constants';
 

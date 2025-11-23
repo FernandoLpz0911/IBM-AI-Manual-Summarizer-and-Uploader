@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  BookOpen, MessageSquare, Upload, Users, LogOut, FileText, 
-  Send, Loader2, ChevronRight, X, User as UserIcon, Sparkles,
+  BookOpen, Upload, Users, LogOut, FileText, 
+  Send, Loader2, ChevronRight, User as Sparkles,
   Search, Bot
 } from 'lucide-react';
 import { initializeApp, FirebaseApp } from 'firebase/app';
@@ -194,15 +194,6 @@ export default function App() {
     setIsTyping(false);
   }
 };
-
-  // --- AUTH HELPERS ---
-  const getFormValues = (e: React.FormEvent, names: string[]) => {
-    return names.reduce((acc, name) => {
-      const element = (e.currentTarget.elements.namedItem(name) as HTMLInputElement);
-      if (element) acc[name] = element.value;
-      return acc;
-    }, {} as Record<string, string>);
-  };
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

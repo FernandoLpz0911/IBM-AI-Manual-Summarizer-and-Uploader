@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText, MoreVertical, Search, Lock, Users as UsersIcon } from 'lucide-react';
-import { DocumentData, Theme, ViewState } from '../types';
+import { DocumentData, Theme } from '../types';
 
 interface LibraryViewProps {
   documents: DocumentData[];
